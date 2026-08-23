@@ -1,10 +1,19 @@
+---
+layout: default
+title: ChittyEntity Projection Model
+canon_uri: chittycanon://docs/tech/spec/chittyentity-projection-taxonomy
+canon_revision: bc12b063915fe910f81da1e60fdc62266e3a0d5f
+canon_document_status: DRAFT
+ontology_term_maturity: PROPOSED
+---
+
 # ChittyEntity Projection Model
 
 Normative source: `chittycanon://docs/tech/spec/chittyentity-projection-taxonomy`.
 
-This page is a human-readable projection. ChittyCanon owns the normative ontology/taxonomy lifecycle; this page must remain drift-detectable against that source.
+**Projection provenance:** synchronized to Canon merge `bc12b063915fe910f81da1e60fdc62266e3a0d5f`. The source document is `DRAFT`; the new/re-scoped projection-family terms remain **PROPOSED**, not PROVISIONAL or CANONICAL.
 
-The current Canon document is `DRAFT`; the new/re-scoped taxonomy terms described below remain **PROPOSED** until they pass the Ontology Term Lifecycle gates.
+This page is a human-readable projection. ChittyCanon owns the normative ontology/taxonomy lifecycle. The pinned source revision above is the drift-detection baseline; a later Canon revision makes this projection stale until it is re-rendered/reconciled.
 
 ## Model
 
@@ -25,11 +34,11 @@ Keep these dimensions separate:
 
 `ChittyConnect` remains the canonical service while `chittyagent-connect` is an agentic projection of ChittyConnect. Under current Canon governance, that family-prefix projection definition is Market-owned until a coordinated governance migration explicitly reassigns it. Implementation placement does not silently transfer ownership.
 
-A ChittyAgent implementation may use owned/composite Chitty SDK substrate that adapts managed frameworks such as Cloudflare Agents SDK or Google ADK and managed protocols such as MCP.
+A ChittyAgent implementation may use owned/composite Chitty SDK substrate that adapts managed frameworks such as Cloudflare Agents SDK or Google ADK and MCP protocol bindings or concrete MCP implementations.
 
 ## Chitty SDKs and legacy shared code
 
-`chittyentity/chittysdks/*` is the proposed reusable-substrate home for responsibilities historically carried by portions of `shared/*`: reusable clients, schemas/types, protocol bindings, auth/transport adapters, base classes, framework adapters, and other reusable implementation substrate. Migration is selective rather than a mechanical directory rename.
+`chittyentity/chittysdks/*` is the proposed reusable-substrate home for responsibilities historically carried by reusable code, including the current `workers/shared/*` package in ChittyEntity. Migration is selective rather than a mechanical directory rename.
 
 Proposed target layout:
 
@@ -50,7 +59,7 @@ Repository placement does not by itself change canonical capability ownership or
 - **ChittyConfig** — mutable projection pointers, instruction-blueprint composition, surface bindings, rendering provenance, and drift detection; not canonical governance content.
 - **ChittyEntity** — implementation homes and Chitty SDK substrate assigned to it by governed ownership records.
 - **ChittyMarket** — marketplace/distribution projections and current canonical owner of the specific Market-owned agent definitions identified by the Agent Slug Convention; not the ontology or underlying-capability owner.
-- **ChittyCan** — general natural-language verb/command surface (`can git ...`, `can brew ...`, `can <capability> ...`); it routes to capabilities and does not own Canon semantics.
+- **ChittyCan** — general natural-language verb/command surface; it routes to capabilities and does not own Canon semantics. Individual CLI targets must be resolved from current supported/registered capability state rather than inferred from examples.
 - **ChittyDocs** — human-facing explanatory projection of Canon.
 
 While the projection-family terms remain PROPOSED, consumers should use them only as non-authoritative migration/design guidance and must continue to persist existing canonical IDs, P/L/T/E/A entity types, identity classes, and ownership records.
