@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "chittydocs",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-20",
+  "account_id": "0bc21e3a5a9de1a4cc843be9c3e98121",
+  // Same route the live Worker already has. The docs.chitty.cc custom domain is
+  // attached to this Worker outside this file.
+  "routes": [{ "pattern": "docs.chitty.cc/*", "zone_name": "chitty.cc" }],
+  // Only public/ is published. The previous assets-only deploy published the
+  // whole repository root.
+  "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": true },
+  "version_metadata": { "binding": "CF_VERSION_METADATA" },
+  "vars": { "REGISTRY_URL": "https://registry.chitty.cc" },
+  // Ratified ChittyOS standard: observability off.
+  "observability": { "enabled": false }
+}

@@ -4,7 +4,7 @@ Official documentation for the ChittyOS Standard Framework - a comprehensive leg
 
 ## 🚀 Live Site
 
-Visit the documentation at: https://chittyos.github.io/docs
+Visit the documentation at: https://docs.chitty.cc (service list: https://docs.chitty.cc/services)
 
 ## 📦 Quick Start
 
@@ -28,7 +28,7 @@ npx @chittyos/standard-installer
 
 ## 🛠️ Development
 
-This documentation site is built with HTML, Tailwind CSS, and deployed via GitHub Pages.
+The site is the `chittydocs` Cloudflare Worker: static files in `public/` plus registry-backed routes. Cloudflare Workers Builds deploys `main`. See `CLAUDE.md` for commands.
 
 ## 📄 License
 
