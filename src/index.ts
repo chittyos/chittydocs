@@ -1,4 +1,4 @@
-import { fetchRegistry, renderServicesPage } from "./registry";
+import { REGISTRY_CACHE_SECONDS, fetchRegistry, renderServicesPage } from "./registry";
 
 export interface Env {
   ASSETS: Fetcher;
@@ -33,27 +33,30 @@ async function status(request: Request, env: Env): Promise<Response> {
   return json(request, {
     service: SERVICE,
     version: VERSION,
-    status: registry.ok ? "ok" : "degraded",
+    status: registry.ok && registry.dropped === 0 ? "ok" : "degraded",
     deployment: {
       version_id: env.CF_VERSION_METADATA?.id ?? null,
       version_tag: env.CF_VERSION_METADATA?.tag || null,
       deployed_at: env.CF_VERSION_METADATA?.timestamp ?? null,
     },
     registry: registry.ok
-      ? { url: env.REGISTRY_URL, reachable: true, services: registry.services.length, read_at: registry.fetched_at }
-      : { url: env.REGISTRY_URL, reachable: false, error: registry.error, http_status: registry.http_status, read_at: registry.fetched_at },
+      ? { url: env.REGISTRY_URL, reachable: true, services: registry.services.length, dropped: registry.dropped, served_at: registry.served_at, cache_seconds: REGISTRY_CACHE_SECONDS }
+      : { url: env.REGISTRY_URL, reachable: false, error: registry.error, http_status: registry.http_status, served_at: registry.served_at },
   });
 }
 
 async function indexJson(request: Request, env: Env): Promise<Response> {
   const registry = await fetchRegistry(env.REGISTRY_URL);
   if (!registry.ok) {
-    return json(request, { error: registry.error, http_status: registry.http_status, read_at: registry.fetched_at }, 503);
+    return json(request, { error: registry.error, http_status: registry.http_status, served_at: registry.served_at }, 503);
   }
   return json(request, {
     source: `${env.REGISTRY_URL}/api/v1/tools`,
     pinned: false,
-    read_at: registry.fetched_at,
+    verified: false,
+    served_at: registry.served_at,
+    cache_seconds: REGISTRY_CACHE_SECONDS,
+    dropped: registry.dropped,
     services: registry.services,
   });
 }
@@ -63,11 +66,12 @@ async function servicesPage(request: Request, env: Env): Promise<Response> {
   return respond(request, renderServicesPage(registry, env.REGISTRY_URL), registry.ok ? 200 : 503, HTML_HEADERS);
 }
 
+const DYNAMIC_PATHS = ["/health", "/api/v1/status", "/index.json", "/services", "/services/"];
+
 export default {
   async fetch(request, env): Promise<Response> {
     const { pathname } = new URL(request.url);
-    const dynamic = ["/health", "/api/v1/status", "/index.json", "/services", "/services/"].includes(pathname);
-    if (dynamic && request.method !== "GET" && request.method !== "HEAD") {
+    if (DYNAMIC_PATHS.includes(pathname) && request.method !== "GET" && request.method !== "HEAD") {
       return new Response(JSON.stringify({ error: "method_not_allowed" }), {
         status: 405,
         headers: { allow: "GET, HEAD", "content-type": "application/json; charset=utf-8" },

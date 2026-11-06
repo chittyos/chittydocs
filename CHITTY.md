@@ -22,10 +22,10 @@ visibility: PUBLIC
 One Worker, no database, no KV and no secrets.
 
 - `src/index.ts` routes `/health`, `/api/v1/status`, `/index.json` and `/services`, and hands everything else to the static assets binding.
-- `src/registry.ts` reads ChittyRegistry `GET /api/v1/tools` live (60-second edge cache, 5-second timeout) and turns each record into a name, ChittyID, status, health and https origin. A record without a name is dropped. A non-https URL is never used as a link.
+- `src/registry.ts` reads ChittyRegistry `GET /api/v1/tools` (5-second timeout; the response may be cached at the edge for up to 60 seconds) and turns each record into a name, ChittyID, status, health and origin. A response that is not `success: true`, whose `count` disagrees with its list, or that yields no usable records is treated as unreadable. Records without a name are dropped and counted. Only `https://` origins on `chitty.cc` are linked, because registry records are publicly submitted and are not verified.
 - `src/html.ts` escapes every registry string written into HTML. Registry records come from public submission.
 
-Registry data is shown as live and not pinned to a revision. When the registry cannot be read, the pages say so and return 503; they never show an older list as if it were current.
+Registry data is shown as not pinned to a revision and not verified, with the time it was served and the cache window. When the registry cannot be read, the pages say so and return 503 rather than showing an empty or invented list.
 
 ## Ecosystem position
 

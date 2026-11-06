@@ -20,9 +20,9 @@ ChittyDocs serves `docs.chitty.cc`, the read-only documentation surface for Chit
 | Route | Method | Returns |
 |---|---|---|
 | `/health` | GET, HEAD | `{"status":"ok","service":"chittydocs"}` |
-| `/api/v1/status` | GET, HEAD | Service version, deployed Worker version, and whether ChittyRegistry was readable, with its service count. `status` is `degraded` when the registry is unreadable. |
-| `/index.json` | GET, HEAD | Live service list from ChittyRegistry `GET /api/v1/tools`, marked `pinned: false`. 503 when the registry is unreadable. |
-| `/services` | GET, HEAD | The same list as HTML, with registry strings escaped and a no-script CSP. 503 with an explanation when the registry is unreadable. |
+| `/api/v1/status` | GET, HEAD | Service version, deployed Worker version, and whether ChittyRegistry was readable, with its service count. `status` is `degraded` when the registry is unreadable or records were dropped. |
+| `/index.json` | GET, HEAD | Service list from ChittyRegistry `GET /api/v1/tools`, marked `pinned: false` and `verified: false`, with the count of unusable records dropped. 503 when the registry is unreadable, empty, or inconsistent. |
+| `/services` | GET, HEAD | The same list as HTML, with registry strings escaped, links only to `chitty.cc` hosts, and a no-script CSP. 503 with an explanation when the registry is unreadable. |
 | any other path | GET, HEAD | Static files from `public/`. Nothing outside `public/` is published. |
 
 Other methods on the dynamic routes return 405.

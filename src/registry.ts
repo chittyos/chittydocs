@@ -6,13 +6,16 @@ export interface ServiceEntry {
   chitty_id: string | null;
   status: string | null;
   health: string | null;
-  /** https origin of the service, when the record carries one. */
+  /** https origin on chitty.cc, when the record carries one. Other hosts are never linked. */
   url: string | null;
 }
 
 export type RegistryResult =
-  | { ok: true; fetched_at: string; services: ServiceEntry[] }
-  | { ok: false; fetched_at: string; error: string; http_status: number | null };
+  | { ok: true; served_at: string; services: ServiceEntry[]; dropped: number }
+  | { ok: false; served_at: string; error: string; http_status: number | null };
+
+/** Registry responses are cached at the edge for up to this many seconds. */
+export const REGISTRY_CACHE_SECONDS = 60;
 
 function str(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
@@ -26,13 +29,21 @@ function healthOf(value: unknown): string | null {
   return null;
 }
 
+/** Registry records are publicly submitted, so only chitty.cc hosts are linked. */
+export function isChittyHost(hostname: string): boolean {
+  return hostname === "chitty.cc" || hostname.endsWith(".chitty.cc");
+}
+
 function originOf(record: Record<string, unknown>): string | null {
   const endpoints = Array.isArray(record.endpoints) ? record.endpoints : [];
   const hostname = str(record.hostname);
   const candidates: unknown[] = [record.url, hostname ? `https://${hostname}` : null, ...endpoints];
   for (const candidate of candidates) {
     const safe = safeHttpsUrl(candidate);
-    if (safe) return new URL(safe).origin;
+    if (!safe) continue;
+    const url = new URL(safe);
+    if (url.username || url.password || !isChittyHost(url.hostname)) continue;
+    return url.origin;
   }
   return null;
 }
@@ -51,59 +62,68 @@ export function toServiceEntry(record: unknown): ServiceEntry | null {
   };
 }
 
+/** Validates a parsed /api/v1/tools body. Anything short of a usable, non-empty list is an error. */
+export function parseRegistryBody(body: unknown, served_at: string, http_status: number): RegistryResult {
+  const fail = (error: string): RegistryResult => ({ ok: false, served_at, error, http_status });
+  if (!body || typeof body !== "object") return fail("registry_unexpected_shape");
+  const b = body as { success?: unknown; count?: unknown; tools?: unknown };
+  if (b.success !== true) return fail("registry_not_successful");
+  if (!Array.isArray(b.tools)) return fail("registry_unexpected_shape");
+  if (typeof b.count === "number" && b.count !== b.tools.length) return fail("registry_count_mismatch");
+  if (b.tools.length === 0) return fail("registry_empty");
+  const services = b.tools
+    .map(toServiceEntry)
+    .filter((s): s is ServiceEntry => s !== null)
+    .sort((a, b2) => a.name.localeCompare(b2.name));
+  if (services.length === 0) return fail("registry_no_usable_records");
+  return { ok: true, served_at, services, dropped: b.tools.length - services.length };
+}
+
 /**
  * Reads the live service list. /api/v1/tools is the only KV-backed registry
  * listing; /api/v1/search, /categories and /stats return mock data and must not
  * be used.
  */
 export async function fetchRegistry(baseUrl: string, timeoutMs = 5000): Promise<RegistryResult> {
-  const fetched_at = new Date().toISOString();
+  const served_at = new Date().toISOString();
   let res: Response;
   try {
     res = await fetch(`${baseUrl}/api/v1/tools`, {
       headers: { accept: "application/json" },
       signal: AbortSignal.timeout(timeoutMs),
-      cf: { cacheTtl: 60 },
+      cf: { cacheTtl: REGISTRY_CACHE_SECONDS },
     } as RequestInit);
   } catch (err) {
-    return { ok: false, fetched_at, error: `registry_unreachable: ${(err as Error).name}`, http_status: null };
+    return { ok: false, served_at, error: `registry_unreachable: ${(err as Error).name}`, http_status: null };
   }
   if (!res.ok) {
-    return { ok: false, fetched_at, error: "registry_http_error", http_status: res.status };
+    return { ok: false, served_at, error: "registry_http_error", http_status: res.status };
   }
   let body: unknown;
   try {
     body = await res.json();
   } catch {
-    return { ok: false, fetched_at, error: "registry_invalid_json", http_status: res.status };
+    return { ok: false, served_at, error: "registry_invalid_json", http_status: res.status };
   }
-  const tools = (body as { tools?: unknown }).tools;
-  if (!Array.isArray(tools)) {
-    return { ok: false, fetched_at, error: "registry_unexpected_shape", http_status: res.status };
-  }
-  const services = tools
-    .map(toServiceEntry)
-    .filter((s): s is ServiceEntry => s !== null)
-    .sort((a, b) => a.name.localeCompare(b.name));
-  return { ok: true, fetched_at, services };
+  return parseRegistryBody(body, served_at, res.status);
 }
 
 export function renderServicesPage(result: RegistryResult, registryUrl: string): string {
-  const rows =
-    result.ok
-      ? result.services
-          .map((s) => {
-            const name = escapeHtml(s.name);
-            const label = s.url ? `<a href="${escapeHtml(s.url)}">${name}</a>` : name;
-            return `<tr><td>${label}</td><td>${escapeHtml(s.status ?? "unknown")}</td><td>${escapeHtml(s.health ?? "unknown")}</td></tr>`;
-          })
-          .join("\n")
-      : "";
+  const rows = result.ok
+    ? result.services
+        .map((s) => {
+          const name = escapeHtml(s.name);
+          const label = s.url ? `<a href="${escapeHtml(s.url)}">${name}</a>` : name;
+          return `<tr><td>${label}</td><td>${escapeHtml(s.status ?? "unknown")}</td><td>${escapeHtml(s.health ?? "unknown")}</td></tr>`;
+        })
+        .join("\n")
+    : "";
   const body = result.ok
-    ? `<table><thead><tr><th>Service</th><th>Status</th><th>Health</th></tr></thead><tbody>
+    ? `<p>Entries are shown as registered in ChittyRegistry and are not verified by this page. Only chitty.cc addresses are linked.</p>
+<table><thead><tr><th>Service</th><th>Status</th><th>Health</th></tr></thead><tbody>
 ${rows}
 </tbody></table>
-<p>${result.services.length} services.</p>`
+<p>${result.services.length} services.${result.dropped > 0 ? ` ${result.dropped} registry records without a name were not shown.` : ""}</p>`
     : `<p>ChittyRegistry could not be read (${escapeHtml(result.error)}). No service list is shown rather than an outdated one.</p>`;
   return `<!DOCTYPE html>
 <html lang="en">
@@ -116,7 +136,7 @@ ${rows}
 <body>
 <h1>ChittyOS services</h1>
 ${body}
-<p><small>Source: ChittyRegistry <code>${escapeHtml(registryUrl)}/api/v1/tools</code>, read ${escapeHtml(result.fetched_at)}. Live and not pinned to a revision.</small></p>
+<p><small>Source: ChittyRegistry <code>${escapeHtml(registryUrl)}/api/v1/tools</code>, served ${escapeHtml(result.served_at)}; the registry response may be cached for up to ${REGISTRY_CACHE_SECONDS} seconds. Not pinned to a revision.</small></p>
 </body>
 </html>`;
 }
