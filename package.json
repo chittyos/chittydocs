@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "wrangler dev",
     "typecheck": "tsc --noEmit && tsc --noEmit -p test/tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "docs:schemas": "node scripts/generate-schema-docs.js"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "0.8.71",
