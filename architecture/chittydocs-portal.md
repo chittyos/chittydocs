@@ -6,7 +6,7 @@ status: DRAFT
 
 # ChittyDocs Portal Architecture
 
-**Status:** DRAFT, 2026-11-06. This is a proposal, and nothing here is deployed. Deploys and registry changes need operator approval.
+**Status:** DRAFT, updated 2026-11-07. P0 is deployed (PR #9, `ef0ba61`); P1–P3 are proposals. Deploys and registry changes need operator approval.
 
 ## Purpose
 
@@ -14,17 +14,18 @@ status: DRAFT
 
 ChittyDocs is not an authority. If a page disagrees with its source, the source wins, and the page is regenerated.
 
-## Current state (verified 2026-11-06)
+## Current state (verified 2026-11-07)
 
 | Item | Finding |
 |---|---|
-| Live `docs.chitty.cc/` | 200. Serves a static "ChittyOS - Legal Technology Ecosystem" page. |
-| Live `/health`, `/api/v1/status` | Both return 404. ChittyRegistry lists both endpoints for `did:chitty:foundation:chittydocs`, with a health probe of "ok" on 2026-05-27. |
-| Docs gateway Worker | `chittyos/chittyos-workspace/chittydocs` (`wrangler.toml` route `docs.chitty.cc/*`). It has `/health`, `/index.json`, and a `/{service}/*` → `{service}.chitty.cc/docs/*` proxy. Because the live `/health` returns 404, this Worker is not what is currently serving the route. |
-| This repo | Static HTML plus one canon projection page (`architecture/chittyentity-projections.md`). That page already pins `canon_revision`, the pattern this design generalizes. |
-| Triad | CHARTER, CHITTY and CLAUDE are 3–5 line stubs. `CHARTER.md` claims `chittycanon://core/services/canon`, which is ChittyCanon's URI, not this service's. |
-| README | Links `chittyos.github.io/docs`, which returns 404. |
-| Gateway index | `generateIndex()` interpolates registry `service_name` and `status` into HTML without escaping. Registry records come from public submission, so this is a stored-XSS path. |
+| Serving Worker | This repo (`src/index.ts`, `wrangler.jsonc`, route `docs.chitty.cc/*`). Deployed by Workers Builds on merge to `main`; live version `fa016703`, deployed 2026-11-06T22:12Z. |
+| `/health` | 200, `{"status":"ok","service":"chittydocs"}`. |
+| `/api/v1/status` | 200. Reports version, deployment id and time, and registry reachability with service and dropped-record counts. It reports `degraded` when the registry is unreadable or records were dropped. It does not yet report a build SHA or stale page count; those arrive with the P1 builder. |
+| `/index.json`, `/services` | 200. Built from ChittyRegistry `GET /api/v1/tools` (60s cache), 50 services, links limited to https `chitty.cc` origins, all registry strings HTML-escaped. Both return 503 when the registry is unreadable. |
+| Static assets | Served only from `public/`. Repository files (`/CHARTER.md`, `/wrangler.jsonc`, `/src/*`) return 404. |
+| Live proxy tier (`/{service}/*`) | Not ported in P0; returns 404. The old `chittyos/chittyos-workspace/chittydocs` Worker that had it no longer serves the route. |
+| Triad | `CHARTER.md` (`chittycanon://core/services/chittydocs`), `CHITTY.md` and `CLAUDE.md` describe the deployed Worker. |
+| Registry record | Still lists `security.auth_required: true` with scope `chitty:service:read`. See decision 3. |
 
 ## Sources
 
@@ -94,9 +95,9 @@ Every source is read at a specific revision. Nothing is rendered from "whatever 
 
 ### Serving Worker
 
-- Consolidate the `chittyos-workspace/chittydocs` Worker into this repo, so the service has one home.
+- Lives in this repo (done in P0), so the service has one home.
 - It serves static assets and the manifest. It has no database and no secrets.
-- The live proxy tier stays for services that publish their own `/docs`, and is visibly marked as unpinned.
+- The live proxy tier, for services that publish their own `/docs`, is not yet ported. If it returns, it is visibly marked as unpinned.
 - All registry-sourced strings are HTML-escaped. Rendered markdown is sanitized, with no raw HTML and no scripts, because repo content is untrusted input.
 
 ### Drift
@@ -122,7 +123,7 @@ Every source is read at a specific revision. Nothing is rendered from "whatever 
 
 | Phase | Scope | Exit check |
 |---|---|---|
-| P0 Consolidate | Move the Worker into this repo, write a real triad (correct canon URI), fix `/health` and `/api/v1/status`, escape the index, fix the README link. | `curl docs.chitty.cc/health` and `/api/v1/status` both return 200 with real data. The XSS test, a registry name containing `<script>`, renders escaped. |
+| P0 Consolidate (**done**, PR #9) | Move the Worker into this repo, write a real triad (correct canon URI), fix `/health` and `/api/v1/status`, escape the index, fix the README link. | `curl docs.chitty.cc/health` and `/api/v1/status` both return 200 with real data. The XSS test, a registry name containing `<script>`, renders escaped. |
 | P1 Triad pages | The builder renders triads for registered services that have a repository mapping, with provenance and stale banners. | Every page has a provenance record. Editing a source repo makes its page stale on the next build. |
 | P2 Canon pages | Generalize `chittyentity-projections.md` to the canon document set, pinned by SHA. | Each canon page shows its status, maturity and SHA, and a changed canon SHA marks the page stale. |
 | P3 Hand off drift | ChittyConfig consumes the manifest, and the builder's drift check is removed. | `chittyconfig drift()` reports ChittyDocs pages. |
